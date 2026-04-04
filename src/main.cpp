@@ -10,10 +10,12 @@
 #define PI 3.14159265358979323846
 #endif
 
-// Global objects
-TFT_eSPI tft = TFT_eSPI();
-TFT_eSprite canvas = TFT_eSprite(&tft);
 InputHandler input;
+
+TFT_eSPI tft_local;
+TFT_eSprite canvas_local(&tft_local);
+TFT_eSPI* tft = &tft_local;
+TFT_eSprite* canvas = &canvas_local;
 
 // Global state
 ColorMode current_mode = PURPLE;
@@ -38,7 +40,6 @@ void setup() {
     delay(500);
     Serial.println("Denki Kurage - Initted");
 
-    // Turn OFF RGB LED (Active Low)
     pinMode(LED_R_PIN, OUTPUT);
     pinMode(LED_G_PIN, OUTPUT);
     pinMode(LED_B_PIN, OUTPUT);
@@ -46,26 +47,23 @@ void setup() {
     digitalWrite(LED_G_PIN, HIGH);
     digitalWrite(LED_B_PIN, HIGH);
 
-    tft.init();
-    tft.setRotation(0);
+    tft->init();
+    tft->setRotation(0);
 #ifdef CYD_INVERT_DISPLAY
-    tft.invertDisplay(true);
-#else
-    tft.invertDisplay(false);
+    tft->invertDisplay(true);
 #endif
-    tft.fillScreen(CL_BG);
+    tft->fillScreen(CL_BG);
 
-    canvas.setColorDepth(8);
-    if(!canvas.createSprite(SCREEN_WIDTH, SCREEN_HEIGHT)) {
+    canvas->setColorDepth(8);
+    if(!canvas->createSprite(SCREEN_WIDTH, SCREEN_HEIGHT)) {
         Serial.println("Sprite FAILED");
     }
 
     input.begin();
     input.loadSettings(current_mode);
 
-    // Initialize Backlight
     ledcAttach(TFT_BL_PIN, 5000, 8);
-    ledcWrite(TFT_BL_PIN, input.getBrightness()); // Apply loaded brightness
+    ledcWrite(TFT_BL_PIN, input.getBrightness());
 
     for(int i = 0; i < NUM_PARTICLES; i++) {
         particles[i].x = random(0, SCREEN_WIDTH);
@@ -76,27 +74,19 @@ void setup() {
 }
 
 void loop() {
-    // Input
     input.update(current_mode, user_y_offset, angle_y);
-    ledcWrite(TFT_BL_PIN,
-              input.getBrightness()); // Update brightness dynamically
+    ledcWrite(TFT_BL_PIN, input.getBrightness());
 
-    // Background
-    if(canvas.created()) {
-        canvas.fillScreen(CL_BG);
+    if(canvas->created()) {
+        canvas->fillScreen(CL_BG);
     }
 
-    // Animation Math
     phase += 0.08f;
 
-    // Slow autonomous rotation around body axis (Y-axis)
-    // Randomize target speed every 45 seconds
     if(millis() - last_rotation_change > 45000) {
-        // Range: -0.015 to 0.015 radians per frame
         target_rotation_speed = (random(-150, 150) / 10000.0f);
         last_rotation_change = millis();
     }
-    // Smoothly interpolate current speed to target
     rotation_speed += (target_rotation_speed - rotation_speed) * 0.005f;
     angle_y += rotation_speed;
 
@@ -106,19 +96,17 @@ void loop() {
     float lift = cosf(phase) * 12.0f;
     global_y_offset = drift_y - lift + user_y_offset;
 
-    // Particles
     int v_dir = input.getVerticalDir();
     for(int i = 0; i < NUM_PARTICLES; i++) {
         float p_speed = particles[i].speed;
         if(v_dir == -1)
-            p_speed *= 4.0f; // Moving UP: Fast upward flow
+            p_speed *= 4.0f;
         else if(v_dir == 1)
-            p_speed *= -2.5f; // Moving DOWN: Reverse flow
+            p_speed *= -2.5f;
 
         particles[i].y -= p_speed;
         particles[i].x += sinf(phase + i) * 0.3f;
 
-        // Wrap around logic
         if(particles[i].y < 0) {
             particles[i].y = SCREEN_HEIGHT;
             particles[i].x = random(0, SCREEN_WIDTH);
@@ -128,22 +116,19 @@ void loop() {
         }
 
         uint16_t p_color =
-            tft.color565(0, particles[i].brightness, particles[i].brightness);
-        if(canvas.created())
-            canvas.drawPixel((int)particles[i].x, (int)particles[i].y, p_color);
+            tft->color565(0, particles[i].brightness, particles[i].brightness);
+        if(canvas->created())
+            canvas->drawPixel((int)particles[i].x, (int)particles[i].y, p_color);
     }
 
-    // 3D Geometry
     updateRotationParams(angle_x, angle_y, angle_z);
     float expansion = 1.0f + sinf(phase) * 0.25f;
 
-    // Bell Peak
     Point3D p3 = {0, -35.0f, 0};
     curr_bell_2d[0] = project(rotateFast(p3), global_x_offset, global_y_offset,
                               global_z_offset);
 
     for(int r = 0; r < BELL_RINGS; r++) {
-        // Flattened bell geometry using sine curve
         float normalized_r = (float)(r + 1) / (float)BELL_RINGS;
         float ring_y = -20.0f + (float)r * 18.0f;
         float ring_radius = 120.0f * sinf(normalized_r * PI * 0.5f) * expansion;
@@ -171,63 +156,53 @@ void loop() {
         }
     }
 
-    // Render
-    if(canvas.created()) {
+    if(canvas->created()) {
         bool wireframe = input.isWireframeMode();
         drawJellyfish(canvas, curr_bell_2d, curr_tentacles_2d, current_mode,
                       wireframe);
 
-        // Debug Touch Zones (Dotted Lines for "thinner" look)
         if(input.isDebugMode()) {
-            uint16_t dbg_col = 0xFFE0; // TFT_YELLOW
-            // Horizontal dividers (Full width)
+            uint16_t dbg_col = 0xFFE0;
             for(int x = 0; x < SCREEN_WIDTH; x += 4) {
-                canvas.drawPixel(x, 45, dbg_col);
-                canvas.drawPixel(x, SCREEN_HEIGHT - 45, dbg_col);
+                canvas->drawPixel(x, 45, dbg_col);
+                canvas->drawPixel(x, SCREEN_HEIGHT - 45, dbg_col);
             }
-            // Vertical dividers (Middle section)
             for(int y = 45; y < SCREEN_HEIGHT - 45; y += 4) {
-                canvas.drawPixel(80, y, dbg_col);
-                canvas.drawPixel(160, y, dbg_col);
+                canvas->drawPixel(80, y, dbg_col);
+                canvas->drawPixel(160, y, dbg_col);
             }
-
-            // Corner Square Vertical Dividers (Only in top and bottom strips)
             for(int y = 0; y < 45; y += 4)
-                canvas.drawPixel(SCREEN_WIDTH - 40, y, dbg_col);
+                canvas->drawPixel(SCREEN_WIDTH - 40, y, dbg_col);
             for(int y = SCREEN_HEIGHT - 45; y < SCREEN_HEIGHT; y += 4)
-                canvas.drawPixel(SCREEN_WIDTH - 40, y, dbg_col);
+                canvas->drawPixel(SCREEN_WIDTH - 40, y, dbg_col);
 
-            // Stats Text
-            canvas.setTextColor(dbg_col);
-            canvas.setTextSize(1);
+            canvas->setTextColor(dbg_col);
+            canvas->setTextSize(1);
+            canvas->setTextDatum(MC_DATUM);
+            canvas->drawString("T", 100, 22);
+            canvas->drawString("TR", 220, 22);
+            canvas->drawString("ML", 40, 160);
+            canvas->drawString("MC", 120, 160);
+            canvas->drawString("MR", 200, 160);
+            canvas->drawString("B", 100, 297);
+            canvas->drawString("BR", 220, 297);
 
-            // Region Labels
-            canvas.setTextDatum(MC_DATUM);
-            canvas.drawString("T", 100, 22);
-            canvas.drawString("TR", 220, 22);
-            canvas.drawString("ML", 40, 160);
-            canvas.drawString("MC", 120, 160);
-            canvas.drawString("MR", 200, 160);
-            canvas.drawString("B", 100, 297);
-            canvas.drawString("BR", 220, 297);
-
-            canvas.setTextDatum(TL_DATUM);
-            canvas.setCursor(5, SCREEN_HEIGHT - 60);
-            canvas.printf("FPS: %.1f", current_fps);
-            canvas.setCursor(5, SCREEN_HEIGHT - 70);
-            canvas.printf("MODE: %s", wireframe ? "Wireframe" : "Solid");
-            canvas.setCursor(5, SCREEN_HEIGHT - 80);
-            canvas.printf("YAW: %.2f", angle_y);
-            canvas.setCursor(5, SCREEN_HEIGHT - 90);
-            canvas.printf("Y_OFF: %.0f", user_y_offset);
-            canvas.setCursor(5, SCREEN_HEIGHT - 100);
-            canvas.printf("BRI: %d", input.getBrightness());
+            canvas->setTextDatum(TL_DATUM);
+            canvas->setCursor(5, SCREEN_HEIGHT - 60);
+            canvas->printf("FPS: %.1f", current_fps);
+            canvas->setCursor(5, SCREEN_HEIGHT - 70);
+            canvas->printf("MODE: %s", wireframe ? "Wireframe" : "Solid");
+            canvas->setCursor(5, SCREEN_HEIGHT - 80);
+            canvas->printf("YAW: %.2f", angle_y);
+            canvas->setCursor(5, SCREEN_HEIGHT - 90);
+            canvas->printf("Y_OFF: %.0f", user_y_offset);
+            canvas->setCursor(5, SCREEN_HEIGHT - 100);
+            canvas->printf("BRI: %d", input.getBrightness());
         }
 
-        canvas.pushSprite(0, 0);
+        canvas->pushSprite(0, 0);
     }
 
-    // Update FPS
     unsigned long now = millis();
     if(now > last_frame_time) {
         current_fps = 1000.0f / (now - last_frame_time);

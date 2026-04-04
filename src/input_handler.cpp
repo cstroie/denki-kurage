@@ -29,27 +29,29 @@ void InputHandler::update(ColorMode &mode, float &user_y_offset,
     bool btn_state = digitalRead(BTN_PIN);
     bool touch_trigger = false;
     bool is_touched = ts.touched();
-    vertical_dir = 0;
+    int tx = 0, ty = 0;
 
     if(is_touched) {
         TS_Point p = ts.getPoint();
-        int tx = map(p.x, TOUCH_MIN_X, TOUCH_MAX_X, 0, SCREEN_WIDTH);
-        int ty = map(p.y, TOUCH_MIN_Y, TOUCH_MAX_Y, 0, SCREEN_HEIGHT);
+        tx = map(p.x, TOUCH_MIN_X, TOUCH_MAX_X, 0, SCREEN_WIDTH);
+        ty = map(p.y, TOUCH_MIN_Y, TOUCH_MAX_Y, 0, SCREEN_HEIGHT);
+    }
 
-        // Corner/Edge Squares (Priority)
+    vertical_dir = 0;
+
+    if(is_touched) {
         if(tx > SCREEN_WIDTH - 40) {
-            if(ty < 45) { // Top Right: Solid/Wireframe Toggle
+            if(ty < 45) {
                 if(!last_touch_state) {
                     wireframe_mode = !wireframe_mode;
                     prefs.putBool("wire_mode", wireframe_mode);
                 }
-            } else if(ty > SCREEN_HEIGHT - 45) { // Bottom Right: Debug Toggle
+            } else if(ty > SCREEN_HEIGHT - 45) {
                 if(!last_touch_state)
                     show_debug = !show_debug;
             }
         }
 
-        // Horizontal Strips (Move UP/DOWN)
         if(tx <= SCREEN_WIDTH - 40) {
             if(ty < 45) {
                 user_y_offset -= 4.0f;
@@ -60,35 +62,29 @@ void InputHandler::update(ColorMode &mode, float &user_y_offset,
             }
         }
 
-        // Middle area (45px to 275px)
         if(ty >= 45 && ty <= SCREEN_HEIGHT - 45) {
-            // Zone 3 & 4: Left/Right for Camera Rotation
             if(tx < 80) {
                 angle_y -= 0.04f;
             } else if(tx > SCREEN_WIDTH - 80) {
                 angle_y += 0.04f;
             }
-            // Zone 5: Center square for Color Rotation
             else if(tx >= 80 && tx <= SCREEN_WIDTH - 80) {
                 if(!last_touch_state)
                     touch_trigger = true;
             }
         }
 
-        // Clamp Y offset
         if(user_y_offset < -220.0f)
             user_y_offset = -220.0f;
         if(user_y_offset > 220.0f)
             user_y_offset = 220.0f;
     }
 
-    // BOOT Button: Cycle Brightness
     if(btn_state == LOW && last_btn_state == HIGH) {
         brightness_idx = (brightness_idx + 1) % 4;
         prefs.putUChar("bright_idx", brightness_idx);
     }
 
-    // Touch Trigger (MC): Cycle Color
     if(touch_trigger) {
         mode = (ColorMode)((mode + 1) % NUM_MODES);
         prefs.putInt("color_mode", (int)mode);

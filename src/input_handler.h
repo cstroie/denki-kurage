@@ -17,9 +17,7 @@ class InputHandler {
     uint8_t getBrightness() const;
     bool isDebugMode() const { return show_debug; }
     bool isWireframeMode() const { return wireframe_mode; }
-    int getVerticalDir() const {
-        return vertical_dir;
-    } // -1: UP, 1: DOWN, 0: NONE
+    int getVerticalDir() const { return vertical_dir; }
 
   private:
     SPIClass touchSpi;
