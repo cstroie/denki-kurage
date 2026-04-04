@@ -1,16 +1,43 @@
 #include "input_handler.h"
 
 InputHandler::InputHandler()
-    : touchSpi(VSPI), ts(XPT2046_CS, XPT2046_IRQ), last_btn_state(true),
-      last_touch_state(false), show_debug(false), wireframe_mode(false),
-      vertical_dir(0), last_touch_time(0), brightness_idx(3) {}
+    : last_btn_state(true), show_debug(false), wireframe_mode(false),
+      vertical_dir(0), touched(false), touch_x(0), touch_y(0), brightness_idx(3) {}
 
 void InputHandler::begin() {
     pinMode(BTN_PIN, INPUT_PULLUP);
-    touchSpi.begin(XPT2046_CLK, XPT2046_MISO, XPT2046_MOSI, XPT2046_CS);
-    ts.begin(touchSpi);
-    ts.setRotation(0);
+    Wire.begin(21, 22);
+    Wire.setClock(400000);
     prefs.begin("jellyfish", false);
+}
+
+bool InputHandler::readCST820Touch() {
+    Wire.requestFrom(0x15, (uint8_t)7);
+    if(Wire.available() < 7) return false;
+    
+    uint8_t status = Wire.read();
+    if((status & 0x80) == 0) return false;
+    
+    uint8_t xl = Wire.read();
+    uint8_t xh = Wire.read();
+    uint8_t yl = Wire.read();
+    uint8_t yh = Wire.read();
+    Wire.read();
+    Wire.read();
+    
+    int raw_x = (xh << 8) | xl;
+    int raw_y = (yh << 8) | yl;
+    
+    if(raw_x < 100 || raw_x > 1900 || raw_y < 100 || raw_y > 900) {
+        return false;
+    }
+    
+    touch_x = map(raw_x, 100, 1900, 0, SCREEN_WIDTH);
+    touch_y = map(raw_y, 100, 900, 0, SCREEN_HEIGHT);
+    touch_x = constrain(touch_x, 0, SCREEN_WIDTH - 1);
+    touch_y = constrain(touch_y, 0, SCREEN_HEIGHT - 1);
+    
+    return true;
 }
 
 void InputHandler::loadSettings(ColorMode &mode) {
@@ -28,18 +55,14 @@ void InputHandler::update(ColorMode &mode, float &user_y_offset,
                           float &angle_y) {
     bool btn_state = digitalRead(BTN_PIN);
     bool touch_trigger = false;
-    bool is_touched = ts.touched();
-    int tx = 0, ty = 0;
-
-    if(is_touched) {
-        TS_Point p = ts.getPoint();
-        tx = map(p.x, TOUCH_MIN_X, TOUCH_MAX_X, 0, SCREEN_WIDTH);
-        ty = map(p.y, TOUCH_MIN_Y, TOUCH_MAX_Y, 0, SCREEN_HEIGHT);
-    }
+    touched = readCST820Touch();
 
     vertical_dir = 0;
 
-    if(is_touched) {
+    if(touched) {
+        int tx = touch_x;
+        int ty = touch_y;
+        
         if(tx > SCREEN_WIDTH - 40) {
             if(ty < 45) {
                 if(!last_touch_state) {
@@ -91,5 +114,5 @@ void InputHandler::update(ColorMode &mode, float &user_y_offset,
     }
 
     last_btn_state = btn_state;
-    last_touch_state = is_touched;
+    last_touch_state = touched;
 }

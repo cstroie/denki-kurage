@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <vector>
 
-using Canvas = TFT_eSprite;
+using Canvas = lgfx::LGFX_Sprite;
 
 static void drawLineSafe(Canvas *canvas, Point2D p1, Point2D p2,
                          uint16_t color) {

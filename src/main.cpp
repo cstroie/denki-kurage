@@ -4,7 +4,7 @@
 #include "math_3d.h"
 #include "types.h"
 #include <Arduino.h>
-#include <TFT_eSPI.h>
+#include <LovyanGFX.hpp>
 
 #ifndef PI
 #define PI 3.14159265358979323846
@@ -12,10 +12,60 @@
 
 InputHandler input;
 
-TFT_eSPI tft_local;
-TFT_eSprite canvas_local(&tft_local);
-TFT_eSPI* tft = &tft_local;
-TFT_eSprite* canvas = &canvas_local;
+class LGFX_Parallel8Bit : public lgfx::LGFX_Device {
+public:
+    lgfx::Panel_ST7789 _panel_instance;
+    lgfx::Bus_Parallel8 _bus_instance;
+    lgfx::Light_PWM _light_instance;
+
+    LGFX_Parallel8Bit(void) {
+        {
+            auto cfg = _bus_instance.config();
+            cfg.i2s_port = I2S_NUM_0;
+            cfg.freq_write = 20000000;
+            cfg.pin_rd = 2;
+            cfg.pin_wr = 4;
+            cfg.pin_rs = 16;
+            cfg.pin_d0 = 15;
+            cfg.pin_d1 = 13;
+            cfg.pin_d2 = 12;
+            cfg.pin_d3 = 14;
+            cfg.pin_d4 = 27;
+            cfg.pin_d5 = 25;
+            cfg.pin_d6 = 33;
+            cfg.pin_d7 = 32;
+            _bus_instance.config(cfg);
+            _panel_instance.bus(&_bus_instance);
+        }
+        {
+            auto cfg = _panel_instance.config();
+            cfg.pin_cs = 17;
+            cfg.pin_rst = -1;
+            cfg.panel_width = 240;
+            cfg.panel_height = 320;
+            cfg.offset_x = 0;
+            cfg.offset_y = 0;
+            cfg.invert = false;
+            cfg.rgb_order = false;
+            _panel_instance.config(cfg);
+        }
+        {
+            auto cfg = _light_instance.config();
+            cfg.pin_bl = 21;
+            cfg.invert = false;
+            cfg.freq = 5000;
+            cfg.pwm_channel = 0;
+            _light_instance.config(cfg);
+            _panel_instance.light(&_light_instance);
+        }
+        setPanel(&_panel_instance);
+    }
+};
+
+static LGFX_Parallel8Bit tft_local;
+static lgfx::LGFX_Sprite canvas_local(&tft_local);
+static lgfx::LGFX_Device* tft = &tft_local;
+static lgfx::LGFX_Sprite* canvas = &canvas_local;
 
 // Global state
 ColorMode current_mode = PURPLE;
@@ -62,8 +112,7 @@ void setup() {
     input.begin();
     input.loadSettings(current_mode);
 
-    ledcAttach(TFT_BL_PIN, 5000, 8);
-    ledcWrite(TFT_BL_PIN, input.getBrightness());
+    tft->setBrightness(input.getBrightness());
 
     for(int i = 0; i < NUM_PARTICLES; i++) {
         particles[i].x = random(0, SCREEN_WIDTH);
@@ -75,9 +124,9 @@ void setup() {
 
 void loop() {
     input.update(current_mode, user_y_offset, angle_y);
-    ledcWrite(TFT_BL_PIN, input.getBrightness());
+    tft->setBrightness(input.getBrightness());
 
-    if(canvas->created()) {
+    if(canvas->width() > 0) {
         canvas->fillScreen(CL_BG);
     }
 
@@ -117,7 +166,7 @@ void loop() {
 
         uint16_t p_color =
             tft->color565(0, particles[i].brightness, particles[i].brightness);
-        if(canvas->created())
+        if(canvas->width() > 0)
             canvas->drawPixel((int)particles[i].x, (int)particles[i].y, p_color);
     }
 
@@ -156,7 +205,7 @@ void loop() {
         }
     }
 
-    if(canvas->created()) {
+    if(canvas->width() > 0) {
         bool wireframe = input.isWireframeMode();
         drawJellyfish(canvas, curr_bell_2d, curr_tentacles_2d, current_mode,
                       wireframe);

@@ -5,8 +5,7 @@
 #include "types.h"
 #include <Arduino.h>
 #include <Preferences.h>
-#include <SPI.h>
-#include <XPT2046_Touchscreen.h>
+#include <Wire.h>
 
 class InputHandler {
   public:
@@ -20,8 +19,6 @@ class InputHandler {
     int getVerticalDir() const { return vertical_dir; }
 
   private:
-    SPIClass touchSpi;
-    XPT2046_Touchscreen ts;
     Preferences prefs;
     uint8_t brightness_idx;
     bool last_btn_state;
@@ -29,7 +26,10 @@ class InputHandler {
     bool show_debug;
     bool wireframe_mode;
     int vertical_dir;
-    unsigned long last_touch_time;
+    bool touched;
+    int touch_x;
+    int touch_y;
+    bool readCST820Touch();
 };
 
 #endif
