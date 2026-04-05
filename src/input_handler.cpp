@@ -12,30 +12,32 @@ void InputHandler::begin() {
 }
 
 bool InputHandler::readCST820Touch() {
-    Wire.requestFrom(0x15, (uint8_t)7);
-    if(Wire.available() < 7) return false;
+    Wire.beginTransmission(0x15);
+    Wire.write(0x02);
+    if(Wire.endTransmission() != 0) return false;
+    Wire.requestFrom(0x15, (uint8_t)6);
+    
+    if(Wire.available() < 6) return false;
     
     uint8_t status = Wire.read();
-    if((status & 0x80) == 0) return false;
-    
     uint8_t xl = Wire.read();
     uint8_t xh = Wire.read();
     uint8_t yl = Wire.read();
     uint8_t yh = Wire.read();
     Wire.read();
-    Wire.read();
+    
+    if((status & 0x01) == 0) return false;
     
     int raw_x = (xh << 8) | xl;
     int raw_y = (yh << 8) | yl;
     
-    if(raw_x < 100 || raw_x > 1900 || raw_y < 100 || raw_y > 900) {
-        return false;
-    }
-    
-    touch_x = map(raw_x, 100, 1900, 0, SCREEN_WIDTH);
-    touch_y = map(raw_y, 100, 900, 0, SCREEN_HEIGHT);
+    touch_y = map(raw_y, 5000, 55000, SCREEN_HEIGHT, 0);
+    touch_x = map(raw_x, 2500, 58000, 0, SCREEN_WIDTH);
     touch_x = constrain(touch_x, 0, SCREEN_WIDTH - 1);
     touch_y = constrain(touch_y, 0, SCREEN_HEIGHT - 1);
+
+    Serial.printf("Raw: %d, %d\n", raw_x, raw_y);
+    Serial.printf("Touch at: %d, %d\n", touch_x, touch_y);
     
     return true;
 }
