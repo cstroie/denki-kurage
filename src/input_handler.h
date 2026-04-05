@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include <Wire.h>
+#include "CST820.h"
 
 class InputHandler {
   public:
@@ -20,6 +21,7 @@ class InputHandler {
 
   private:
     Preferences prefs;
+    CST820 touch;
     uint8_t brightness_idx;
     bool last_btn_state;
     bool last_touch_state;
