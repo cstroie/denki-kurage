@@ -31,10 +31,10 @@ bool InputHandler::readCST820Touch() {
     int raw_x = (xh << 8) | xl;
     int raw_y = (yh << 8) | yl;
     
-    touch_y = map(raw_y, 5000, 55000, SCREEN_HEIGHT, 0);
-    touch_x = map(raw_x, 2500, 58000, 0, SCREEN_WIDTH);
-    touch_x = constrain(touch_x, 0, SCREEN_WIDTH - 1);
-    touch_y = constrain(touch_y, 0, SCREEN_HEIGHT - 1);
+    touch_y = map(raw_y, 5000, 55000, SCREEN_WIDTH, 0);
+    touch_x = map(raw_x, 28000, 58000, 0, SCREEN_HEIGHT);
+    touch_x = constrain(touch_x, 0, SCREEN_HEIGHT - 1);
+    touch_y = constrain(touch_y, 0, SCREEN_WIDTH - 1);
 
     Serial.printf("Raw: %d, %d\n", raw_x, raw_y);
     Serial.printf("Touch at: %d, %d\n", touch_x, touch_y);
